@@ -1,0 +1,749 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "![MLU Logo](../data/MLU_Logo.png)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# <a name=\"0\">Machine Learning Accelerator - Tabular Data - Lecture 1</a>\n",
+    "\n",
+    "\n",
+    "## Final Project \n",
+    "\n",
+    "In this notebook, we build a ML model to predict the __Time at Center__ field of our final project dataset.\n",
+    "\n",
+    "1. <a href=\"#1\">Read the dataset</a> (Given) \n",
+    "2. <a href=\"#2\">Train a model</a> (Implement)\n",
+    "    * <a href=\"#21\">Exploratory Data Analysis</a>\n",
+    "    * <a href=\"#22\">Select features to build the model</a>\n",
+    "    * <a href=\"#23\">Data processing</a>\n",
+    "    * <a href=\"#24\">Model training</a>\n",
+    "3. <a href=\"#3\">Make predictions on the test dataset</a> (Implement)\n",
+    "4. <a href=\"#4\">Write the test predictions to a CSV file</a> (Given)\n",
+    "\n",
+    "__Austin Animal Center Dataset__:\n",
+    "\n",
+    "In this exercise, we are working with pet adoption data from __Austin Animal Center__. We have two datasets that cover intake and outcome of animals. Intake data is available from [here](https://data.austintexas.gov/Health-and-Community-Services/Austin-Animal-Center-Intakes/wter-evkm) and outcome is from [here](https://data.austintexas.gov/Health-and-Community-Services/Austin-Animal-Center-Outcomes/9t4d-g238). \n",
+    "\n",
+    "In order to work with a single table, we joined the intake and outcome tables using the \"Animal ID\" column and created a training.csv, test_features.csv and y_test.csv files. Similar to our review dataset, we didn't consider animals with multiple entries to the facility to keep it simple. If you want to see the original datasets, they are available under data/review folder: Austin_Animal_Center_Intakes.csv, Austin_Animal_Center_Outcomes.csv.\n",
+    "\n",
+    "__Dataset schema:__ \n",
+    "- __Pet ID__ - Unique ID of pet\n",
+    "- __Outcome Type__ - State of pet at the time of recording the outcome\n",
+    "- __Sex upon Outcome__ - Sex of pet at outcome\n",
+    "- __Name__ - Name of pet \n",
+    "- __Found Location__ - Found location of pet before entered the center\n",
+    "- __Intake Type__ - Circumstances bringing the pet to the center\n",
+    "- __Intake Condition__ - Health condition of pet when entered the center\n",
+    "- __Pet Type__ - Type of pet\n",
+    "- __Sex upon Intake__ - Sex of pet when entered the center\n",
+    "- __Breed__ - Breed of pet \n",
+    "- __Color__ - Color of pet \n",
+    "- __Age upon Intake Days__ - Age of pet when entered the center (days)\n",
+    "- __Time at Center__ - Time at center (0 = less than 30 days; 1 = more than 30 days). This is the value to predict. \n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. <a name=\"1\">Read the datasets</a> (Given)\n",
+    "(<a href=\"#0\">Go to top</a>)\n",
+    "\n",
+    "Let's read the datasets into dataframes, using Pandas."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "The shape of the training dataset is: (71538, 13)\n",
+      "The shape of the test dataset is: (23846, 12)\n"
+     ]
+    }
+   ],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "\n",
+    "import warnings\n",
+    "warnings.filterwarnings(\"ignore\")\n",
+    "  \n",
+    "training_data = pd.read_csv('../data/final_project/training.csv')\n",
+    "test_data = pd.read_csv('../data/final_project/test_features.csv')\n",
+    "\n",
+    "print('The shape of the training dataset is:', training_data.shape)\n",
+    "print('The shape of the test dataset is:', test_data.shape)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Data Exploration"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 71538 entries, 0 to 71537\n",
+      "Data columns (total 13 columns):\n",
+      " #   Column                Non-Null Count  Dtype \n",
+      "---  ------                --------------  ----- \n",
+      " 0   Pet ID                71538 non-null  object\n",
+      " 1   Outcome Type          71533 non-null  object\n",
+      " 2   Sex upon Outcome      71537 non-null  object\n",
+      " 3   Name                  44360 non-null  object\n",
+      " 4   Found Location        71538 non-null  object\n",
+      " 5   Intake Type           71538 non-null  object\n",
+      " 6   Intake Condition      71538 non-null  object\n",
+      " 7   Pet Type              71538 non-null  object\n",
+      " 8   Sex upon Intake       71537 non-null  object\n",
+      " 9   Breed                 71538 non-null  object\n",
+      " 10  Color                 71538 non-null  object\n",
+      " 11  Age upon Intake Days  71538 non-null  int64 \n",
+      " 12  Time at Center        71538 non-null  int64 \n",
+      "dtypes: int64(2), object(11)\n",
+      "memory usage: 7.1+ MB\n",
+      "None\n",
+      "       Age upon Intake Days  Time at Center\n",
+      "count          71538.000000    71538.000000\n",
+      "mean             702.701487        0.087003\n",
+      "std             1051.158334        0.281841\n",
+      "min                0.000000        0.000000\n",
+      "25%               30.000000        0.000000\n",
+      "50%              365.000000        0.000000\n",
+      "75%              730.000000        0.000000\n",
+      "max             9125.000000        1.000000\n",
+      "Pet ID                      0\n",
+      "Outcome Type                5\n",
+      "Sex upon Outcome            1\n",
+      "Name                    27178\n",
+      "Found Location              0\n",
+      "Intake Type                 0\n",
+      "Intake Condition            0\n",
+      "Pet Type                    0\n",
+      "Sex upon Intake             1\n",
+      "Breed                       0\n",
+      "Color                       0\n",
+      "Age upon Intake Days        0\n",
+      "Time at Center              0\n",
+      "dtype: int64\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Implement here\n",
+    "print(training_data.info())\n",
+    "print(training_data.describe())\n",
+    "print(training_data.isna().sum())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Data Preparation"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Drop NaNs\n",
+    "training_data = training_data.dropna(how='all')\n",
+    "training_data = training_data.drop(columns=['Name'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Drop correlated numeric features\n",
+    "corr_matrix = training_data.corr().abs()\n",
+    "\n",
+    "upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))\n",
+    "\n",
+    "to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[]"
+      ]
+     },
+     "execution_count": 24,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "to_drop"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Training using autogluon"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "No path specified. Models will be saved in: \"AutogluonModels/ag-20210314_074735/\"\n",
+      "Beginning AutoGluon training ...\n",
+      "AutoGluon will save models to \"AutogluonModels/ag-20210314_074735/\"\n",
+      "AutoGluon Version:  0.1.0\n",
+      "Train Data Rows:    71538\n",
+      "Train Data Columns: 11\n",
+      "Preprocessing data ...\n",
+      "AutoGluon infers your prediction problem is: 'binary' (because only two unique label-values observed).\n",
+      "\t2 unique label values:  [0, 1]\n",
+      "\tIf 'binary' is not the correct problem_type, please manually specify the problem_type argument in fit() (You may specify problem_type as one of: ['binary', 'multiclass', 'regression'])\n",
+      "Selected class <--> label mapping:  class 1 = 1, class 0 = 0\n",
+      "Using Feature Generators to preprocess the data ...\n",
+      "Fitting AutoMLPipelineFeatureGenerator...\n",
+      "\tAvailable Memory:                    2753.85 MB\n",
+      "\tTrain Data (Original)  Memory Usage: 49.57 MB (1.8% of available memory)\n",
+      "\tInferring data type of each feature based on column values. Set feature_metadata_in to manually specify special dtypes of the features.\n",
+      "\tStage 1 Generators:\n",
+      "\t\tFitting AsTypeFeatureGenerator...\n",
+      "\tStage 2 Generators:\n",
+      "\t\tFitting FillNaFeatureGenerator...\n",
+      "\tStage 3 Generators:\n",
+      "\t\tFitting IdentityFeatureGenerator...\n",
+      "\t\tFitting CategoryFeatureGenerator...\n",
+      "\t\t\tFitting CategoryMemoryMinimizeFeatureGenerator...\n",
+      "\t\tFitting TextSpecialFeatureGenerator...\n",
+      "\t\t\tFitting BinnedFeatureGenerator...\n",
+      "\t\t\tFitting DropDuplicatesFeatureGenerator...\n",
+      "\t\tFitting TextNgramFeatureGenerator...\n",
+      "\t\t\tFitting CountVectorizer for text features: ['Found Location']\n",
+      "\t\t\tCountVectorizer fit with vocabulary size = 1100\n",
+      "\t\tWarning: Due to memory constraints, ngram feature count is being reduced. Allocate more memory to maximize model quality.\n",
+      "\t\tReducing Vectorizer vocab size from 1100 to 754 to avoid OOM error\n",
+      "\tStage 4 Generators:\n",
+      "\t\tFitting DropUniqueFeatureGenerator...\n",
+      "\tUnused Original Features (Count: 1): ['Pet ID']\n",
+      "\t\tThese features were not used to generate any of the output features. Add a feature generator compatible with these features to utilize them.\n",
+      "\t\tFeatures can also be unused if they carry very little information, such as being categorical but having almost entirely unique values or being duplicates of other features.\n",
+      "\t\tThese features do not need to be present at inference time.\n",
+      "\t\t('object', []) : 1 | ['Pet ID']\n",
+      "\tTypes of features in original data (raw dtype, special dtypes):\n",
+      "\t\t('int', [])          : 1 | ['Age upon Intake Days']\n",
+      "\t\t('object', [])       : 8 | ['Outcome Type', 'Sex upon Outcome', 'Intake Type', 'Intake Condition', 'Pet Type', ...]\n",
+      "\t\t('object', ['text']) : 1 | ['Found Location']\n",
+      "\tTypes of features in processed data (raw dtype, special dtypes):\n",
+      "\t\t('category', [])                    :   8 | ['Outcome Type', 'Sex upon Outcome', 'Intake Type', 'Intake Condition', 'Pet Type', ...]\n",
+      "\t\t('category', ['text_as_category'])  :   1 | ['Found Location']\n",
+      "\t\t('int', [])                         :   1 | ['Age upon Intake Days']\n",
+      "\t\t('int', ['binned', 'text_special']) :  22 | ['Found Location.char_count', 'Found Location.word_count', 'Found Location.capital_ratio', 'Found Location.lower_ratio', 'Found Location.digit_ratio', ...]\n",
+      "\t\t('int', ['text_ngram'])             : 755 | ['__nlp__.1000', '__nlp__.1100', '__nlp__.1101', '__nlp__.1200', '__nlp__.1201', ...]\n",
+      "\t22.4s = Fit runtime\n",
+      "\t10 features in original data used to generate 787 features in processed data.\n",
+      "\tTrain Data (Processed) Memory Usage: 57.68 MB (2.0% of available memory)\n",
+      "Data preprocessing and feature engineering runtime = 22.54s ...\n",
+      "AutoGluon will gauge predictive performance using evaluation metric: 'accuracy'\n",
+      "\tTo change this, specify the eval_metric argument of fit()\n",
+      "Automatically generating train/validation split with holdout_frac=0.03494646202018507, Train Rows: 69038, Val Rows: 2500\n",
+      "Fitting model: RandomForestGini ...\n",
+      "\t0.9436\t = Validation accuracy score\n",
+      "\t39.69s\t = Training runtime\n",
+      "\t0.12s\t = Validation runtime\n",
+      "Fitting model: RandomForestEntr ...\n",
+      "\t0.9452\t = Validation accuracy score\n",
+      "\t38.72s\t = Training runtime\n",
+      "\t0.11s\t = Validation runtime\n",
+      "Fitting model: ExtraTreesGini ...\n",
+      "\tWarning: Reducing model 'n_estimators' from 300 -> 181 due to low memory. Expected memory usage reduced from 24.85% -> 15.0% of available memory...\n",
+      "\t0.9272\t = Validation accuracy score\n",
+      "\t52.46s\t = Training runtime\n",
+      "\t0.11s\t = Validation runtime\n",
+      "Fitting model: ExtraTreesEntr ...\n",
+      "\tWarning: Reducing model 'n_estimators' from 300 -> 201 due to low memory. Expected memory usage reduced from 22.33% -> 15.0% of available memory...\n",
+      "\t0.9292\t = Validation accuracy score\n",
+      "\t51.74s\t = Training runtime\n",
+      "\t0.11s\t = Validation runtime\n",
+      "Fitting model: KNeighborsUnif ...\n",
+      "\t0.9132\t = Validation accuracy score\n",
+      "\t0.42s\t = Training runtime\n",
+      "\t0.16s\t = Validation runtime\n",
+      "Fitting model: KNeighborsDist ...\n",
+      "\t0.9132\t = Validation accuracy score\n",
+      "\t0.4s\t = Training runtime\n",
+      "\t0.15s\t = Validation runtime\n",
+      "Fitting model: LightGBM ...\n",
+      "\tWarning: Exception caused LightGBM to fail during training (ImportError)... Skipping this model.\n",
+      "\t\t`import lightgbm` failed. If you are using Mac OSX, Please try 'brew install libomp'. Detailed info: dlopen(/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/lightgbm/lib_lightgbm.so, 6): Library not loaded: /usr/local/opt/libomp/lib/libomp.dylib\n",
+      "  Referenced from: /Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/lightgbm/lib_lightgbm.so\n",
+      "  Reason: image not found\n",
+      "Fitting model: LightGBMXT ...\n",
+      "\tWarning: Exception caused LightGBMXT to fail during training (ImportError)... Skipping this model.\n",
+      "\t\t`import lightgbm` failed. If you are using Mac OSX, Please try 'brew install libomp'. Detailed info: dlopen(/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/lightgbm/lib_lightgbm.so, 6): Library not loaded: /usr/local/opt/libomp/lib/libomp.dylib\n",
+      "  Referenced from: /Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/lightgbm/lib_lightgbm.so\n",
+      "  Reason: image not found\n",
+      "Fitting model: CatBoost ...\n",
+      "\t0.94\t = Validation accuracy score\n",
+      "\t2.55s\t = Training runtime\n",
+      "\t0.09s\t = Validation runtime\n",
+      "Fitting model: XGBoost ...\n",
+      "\tWarning: Exception caused XGBoost to fail during training... Skipping this model.\n",
+      "\t\tXGBoost Library (libxgboost.dylib) could not be loaded.\n",
+      "Likely causes:\n",
+      "  * OpenMP runtime is not installed (vcomp140.dll or libgomp-1.dll for Windows, libomp.dylib for Mac OSX, libgomp.so for Linux and other UNIX-like OSes). Mac OSX users: Run `brew install libomp` to install OpenMP runtime.\n",
+      "  * You are running 32-bit Python on a 64-bit OS\n",
+      "Error message(s): ['dlopen(/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/lib/libxgboost.dylib, 6): Library not loaded: /usr/local/opt/libomp/lib/libomp.dylib\\n  Referenced from: /Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/lib/libxgboost.dylib\\n  Reason: image not found']\n",
+      "\n",
+      "Detailed Traceback:\n",
+      "Traceback (most recent call last):\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/autogluon/tabular/trainer/abstract_trainer.py\", line 911, in _train_and_save\n",
+      "    model = self._train_single(X, y, model, X_val, y_val, **model_fit_kwargs)\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/autogluon/tabular/trainer/abstract_trainer.py\", line 883, in _train_single\n",
+      "    model.fit(X=X, y=y, X_val=X_val, y_val=y_val, **model_fit_kwargs)\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/autogluon/core/models/abstract/abstract_model.py\", line 405, in fit\n",
+      "    self._fit(**kwargs)\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/autogluon/tabular/models/xgboost/xgboost_model.py\", line 110, in _fit\n",
+      "    try_import_xgboost()\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/autogluon/core/utils/try_import.py\", line 81, in try_import_xgboost\n",
+      "    import xgboost\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/__init__.py\", line 9, in <module>\n",
+      "    from .core import DMatrix, DeviceQuantileDMatrix, Booster\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/core.py\", line 174, in <module>\n",
+      "    _LIB = _load_lib()\n",
+      "  File \"/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/core.py\", line 157, in _load_lib\n",
+      "    raise XGBoostError(\n",
+      "xgboost.core.XGBoostError: XGBoost Library (libxgboost.dylib) could not be loaded.\n",
+      "Likely causes:\n",
+      "  * OpenMP runtime is not installed (vcomp140.dll or libgomp-1.dll for Windows, libomp.dylib for Mac OSX, libgomp.so for Linux and other UNIX-like OSes). Mac OSX users: Run `brew install libomp` to install OpenMP runtime.\n",
+      "  * You are running 32-bit Python on a 64-bit OS\n",
+      "Error message(s): ['dlopen(/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/lib/libxgboost.dylib, 6): Library not loaded: /usr/local/opt/libomp/lib/libomp.dylib\\n  Referenced from: /Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/xgboost/lib/libxgboost.dylib\\n  Reason: image not found']\n",
+      "\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Fitting model: NeuralNetMXNet ...\n",
+      "\t0.9412\t = Validation accuracy score\n",
+      "\t447.89s\t = Training runtime\n",
+      "\t0.33s\t = Validation runtime\n",
+      "Fitting model: NeuralNetFastAI ...\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 25: early stopping\n",
+      "█\r"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "\t0.9132\t = Validation accuracy score\n",
+      "\t211.33s\t = Training runtime\n",
+      "\t1.13s\t = Validation runtime\n",
+      "Fitting model: LightGBMLarge ...\n",
+      "\tWarning: Exception caused LightGBMLarge to fail during training (ImportError)... Skipping this model.\n",
+      "\t\t`import lightgbm` failed. If you are using Mac OSX, Please try 'brew install libomp'. Detailed info: dlopen(/Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/lightgbm/lib_lightgbm.so, 6): Library not loaded: /usr/local/opt/libomp/lib/libomp.dylib\n",
+      "  Referenced from: /Users/anshbordia/opt/anaconda3/lib/python3.8/site-packages/lightgbm/lib_lightgbm.so\n",
+      "  Reason: image not found\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "█\r"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Fitting model: WeightedEnsemble_L2 ...\n",
+      "\t0.9464\t = Validation accuracy score\n",
+      "\t0.87s\t = Training runtime\n",
+      "\t0.01s\t = Validation runtime\n",
+      "AutoGluon training complete, total runtime = 941.19s ...\n",
+      "TabularPredictor saved. To load, use: predictor = TabularPredictor.load(\"AutogluonModels/ag-20210314_074735/\")\n"
+     ]
+    }
+   ],
+   "source": [
+    "#Find the best model for training\n",
+    "from autogluon.tabular import TabularPredictor\n",
+    "\n",
+    "predictor = TabularPredictor(label = 'Time at Center').fit(train_data=training_data)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Test Set Prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Load Test Data\n",
+    "test_data['Time at Center'] = pd.read_csv('../data/final_project/y_test.csv')\n",
+    "\n",
+    "#Drop missing values and Name column\n",
+    "test_data = training_data.dropna(how='all')\n",
+    "test_data = training_data.drop(columns=['Name'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Predictive performance on given data: accuracy = 0.9776901786463138\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "0.9776901786463138"
+      ]
+     },
+     "execution_count": 25,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Evaluate selected predictor on test data\n",
+    "predictor.evaluate(test_data)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "                 model  score_test  score_val  pred_time_test  pred_time_val    fit_time  pred_time_test_marginal  pred_time_val_marginal  fit_time_marginal  stack_level  can_infer  fit_order\n",
+      "0     RandomForestEntr    0.995233     0.9452        2.338551       0.114932   38.717107                 2.338551                0.114932          38.717107            1       True          2\n",
+      "1     RandomForestGini    0.995177     0.9436        2.696404       0.118220   39.689618                 2.696404                0.118220          39.689618            1       True          1\n",
+      "2       ExtraTreesEntr    0.994674     0.9292        3.040918       0.107698   51.737143                 3.040918                0.107698          51.737143            1       True          4\n",
+      "3       ExtraTreesGini    0.994604     0.9272        3.056309       0.107866   52.460546                 3.056309                0.107866          52.460546            1       True          3\n",
+      "4  WeightedEnsemble_L2    0.977690     0.9464       92.257412       1.490689  253.877923                 0.060285                0.005184           0.873863            2       True         10\n",
+      "5       NeuralNetMXNet    0.954695     0.9412        7.840255       0.331226  447.893905                 7.840255                0.331226         447.893905            1       True          8\n",
+      "6             CatBoost    0.947133     0.9400        0.272110       0.089540    2.551583                 0.272110                0.089540           2.551583            1       True          7\n",
+      "7      NeuralNetFastAI    0.926766     0.9132       84.991728       1.129154  211.332399                84.991728                1.129154         211.332399            1       True          9\n",
+      "8       KNeighborsUnif    0.911404     0.9132        3.983826       0.158151    0.420670                 3.983826                0.158151           0.420670            1       True          5\n",
+      "9       KNeighborsDist    0.911404     0.9132        4.594738       0.151879    0.402972                 4.594738                0.151879           0.402972            1       True          6\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>model</th>\n",
+       "      <th>score_test</th>\n",
+       "      <th>score_val</th>\n",
+       "      <th>pred_time_test</th>\n",
+       "      <th>pred_time_val</th>\n",
+       "      <th>fit_time</th>\n",
+       "      <th>pred_time_test_marginal</th>\n",
+       "      <th>pred_time_val_marginal</th>\n",
+       "      <th>fit_time_marginal</th>\n",
+       "      <th>stack_level</th>\n",
+       "      <th>can_infer</th>\n",
+       "      <th>fit_order</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>RandomForestEntr</td>\n",
+       "      <td>0.995233</td>\n",
+       "      <td>0.9452</td>\n",
+       "      <td>2.338551</td>\n",
+       "      <td>0.114932</td>\n",
+       "      <td>38.717107</td>\n",
+       "      <td>2.338551</td>\n",
+       "      <td>0.114932</td>\n",
+       "      <td>38.717107</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>RandomForestGini</td>\n",
+       "      <td>0.995177</td>\n",
+       "      <td>0.9436</td>\n",
+       "      <td>2.696404</td>\n",
+       "      <td>0.118220</td>\n",
+       "      <td>39.689618</td>\n",
+       "      <td>2.696404</td>\n",
+       "      <td>0.118220</td>\n",
+       "      <td>39.689618</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>ExtraTreesEntr</td>\n",
+       "      <td>0.994674</td>\n",
+       "      <td>0.9292</td>\n",
+       "      <td>3.040918</td>\n",
+       "      <td>0.107698</td>\n",
+       "      <td>51.737143</td>\n",
+       "      <td>3.040918</td>\n",
+       "      <td>0.107698</td>\n",
+       "      <td>51.737143</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>4</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>ExtraTreesGini</td>\n",
+       "      <td>0.994604</td>\n",
+       "      <td>0.9272</td>\n",
+       "      <td>3.056309</td>\n",
+       "      <td>0.107866</td>\n",
+       "      <td>52.460546</td>\n",
+       "      <td>3.056309</td>\n",
+       "      <td>0.107866</td>\n",
+       "      <td>52.460546</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>WeightedEnsemble_L2</td>\n",
+       "      <td>0.977690</td>\n",
+       "      <td>0.9464</td>\n",
+       "      <td>92.257412</td>\n",
+       "      <td>1.490689</td>\n",
+       "      <td>253.877923</td>\n",
+       "      <td>0.060285</td>\n",
+       "      <td>0.005184</td>\n",
+       "      <td>0.873863</td>\n",
+       "      <td>2</td>\n",
+       "      <td>True</td>\n",
+       "      <td>10</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>NeuralNetMXNet</td>\n",
+       "      <td>0.954695</td>\n",
+       "      <td>0.9412</td>\n",
+       "      <td>7.840255</td>\n",
+       "      <td>0.331226</td>\n",
+       "      <td>447.893905</td>\n",
+       "      <td>7.840255</td>\n",
+       "      <td>0.331226</td>\n",
+       "      <td>447.893905</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>8</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>6</th>\n",
+       "      <td>CatBoost</td>\n",
+       "      <td>0.947133</td>\n",
+       "      <td>0.9400</td>\n",
+       "      <td>0.272110</td>\n",
+       "      <td>0.089540</td>\n",
+       "      <td>2.551583</td>\n",
+       "      <td>0.272110</td>\n",
+       "      <td>0.089540</td>\n",
+       "      <td>2.551583</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>7</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>7</th>\n",
+       "      <td>NeuralNetFastAI</td>\n",
+       "      <td>0.926766</td>\n",
+       "      <td>0.9132</td>\n",
+       "      <td>84.991728</td>\n",
+       "      <td>1.129154</td>\n",
+       "      <td>211.332399</td>\n",
+       "      <td>84.991728</td>\n",
+       "      <td>1.129154</td>\n",
+       "      <td>211.332399</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>9</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>8</th>\n",
+       "      <td>KNeighborsUnif</td>\n",
+       "      <td>0.911404</td>\n",
+       "      <td>0.9132</td>\n",
+       "      <td>3.983826</td>\n",
+       "      <td>0.158151</td>\n",
+       "      <td>0.420670</td>\n",
+       "      <td>3.983826</td>\n",
+       "      <td>0.158151</td>\n",
+       "      <td>0.420670</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>5</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>9</th>\n",
+       "      <td>KNeighborsDist</td>\n",
+       "      <td>0.911404</td>\n",
+       "      <td>0.9132</td>\n",
+       "      <td>4.594738</td>\n",
+       "      <td>0.151879</td>\n",
+       "      <td>0.402972</td>\n",
+       "      <td>4.594738</td>\n",
+       "      <td>0.151879</td>\n",
+       "      <td>0.402972</td>\n",
+       "      <td>1</td>\n",
+       "      <td>True</td>\n",
+       "      <td>6</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                 model  score_test  score_val  pred_time_test  pred_time_val  \\\n",
+       "0     RandomForestEntr    0.995233     0.9452        2.338551       0.114932   \n",
+       "1     RandomForestGini    0.995177     0.9436        2.696404       0.118220   \n",
+       "2       ExtraTreesEntr    0.994674     0.9292        3.040918       0.107698   \n",
+       "3       ExtraTreesGini    0.994604     0.9272        3.056309       0.107866   \n",
+       "4  WeightedEnsemble_L2    0.977690     0.9464       92.257412       1.490689   \n",
+       "5       NeuralNetMXNet    0.954695     0.9412        7.840255       0.331226   \n",
+       "6             CatBoost    0.947133     0.9400        0.272110       0.089540   \n",
+       "7      NeuralNetFastAI    0.926766     0.9132       84.991728       1.129154   \n",
+       "8       KNeighborsUnif    0.911404     0.9132        3.983826       0.158151   \n",
+       "9       KNeighborsDist    0.911404     0.9132        4.594738       0.151879   \n",
+       "\n",
+       "     fit_time  pred_time_test_marginal  pred_time_val_marginal  \\\n",
+       "0   38.717107                 2.338551                0.114932   \n",
+       "1   39.689618                 2.696404                0.118220   \n",
+       "2   51.737143                 3.040918                0.107698   \n",
+       "3   52.460546                 3.056309                0.107866   \n",
+       "4  253.877923                 0.060285                0.005184   \n",
+       "5  447.893905                 7.840255                0.331226   \n",
+       "6    2.551583                 0.272110                0.089540   \n",
+       "7  211.332399                84.991728                1.129154   \n",
+       "8    0.420670                 3.983826                0.158151   \n",
+       "9    0.402972                 4.594738                0.151879   \n",
+       "\n",
+       "   fit_time_marginal  stack_level  can_infer  fit_order  \n",
+       "0          38.717107            1       True          2  \n",
+       "1          39.689618            1       True          1  \n",
+       "2          51.737143            1       True          4  \n",
+       "3          52.460546            1       True          3  \n",
+       "4           0.873863            2       True         10  \n",
+       "5         447.893905            1       True          8  \n",
+       "6           2.551583            1       True          7  \n",
+       "7         211.332399            1       True          9  \n",
+       "8           0.420670            1       True          5  \n",
+       "9           0.402972            1       True          6  "
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Performance of other predictors\n",
+    "predictor.leaderboard(test_data)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
